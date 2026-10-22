@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+The MIT License
+
+Copyright (c) 2004-2009, Sun Microsystems, Inc., Kohsuke Kawaguchi, Stephen Connolly, Tom Huybrechts, Yahoo! Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.jenkins-ci.main</groupId>
+    <artifactId>jenkins-parent</artifactId>
+    <version>${revision}${changelist}</version>
+  </parent>
+
+  <artifactId>jenkins-war</artifactId>
+  <packaging>war</packaging>
+
+  <name>Jenkins war</name>
+  <description>Creates a war file. Also includes additional static web resources, such as images, CSS, JavaScript, and some HTML files.</description>
+  <url>https://github.com/jenkinsci/jenkins</url>
+
+  <properties>
+    <JENKINS_HOME>${basedir}/work</JENKINS_HOME>
+    <!-- context path during test -->
+    <contextPath>/jenkins</contextPath>
+    <!-- HTTP listener host/interface -->
+    <host>localhost</host>
+    <!-- HTTP listener port -->
+    <port>8080</port>
+    <!-- executable/Main is a plain bootstrap class; nothing here needs annotation processing. -->
+    <maven.compiler.proc>none</maven.compiler.proc>
+    <!-- Minimum Remoting version, which is tested for API compatibility, duplicated so that renovate only updates the latest remoting version property -->
+    <remoting.minimum.supported.version>3176.v207ec082a_8c0</remoting.minimum.supported.version>
+
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.jenkins-ci.main</groupId>
+        <artifactId>jenkins-bom</artifactId>
+        <version>${project.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>cli</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>remoting</artifactId>
+      <!-- specified in the parent -->
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.main</groupId>
+      <artifactId>jenkins-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.main</groupId>
+      <artifactId>websocket-jetty12-ee9</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <!--
+        We bundle slf4j binding since we got some components (sshd for example)
+        that uses slf4j.
+
+        The problem with not shipping any binding in the war is that if the
+        servlet container does use slf4j in itself, then we got a classloader
+        constraint violation (see JENKINS-12334) as we try to load StaticLoggerBinder
+        which resides in the binding jar (this jar would be from container implementation,
+        which relies on slf4j api in the container, when we have our own slf4j API jar
+        statically depending on the binding jar.)
+
+        We also get tickets like JENKINS-12650 for not reporting logs at all
+        (although this is a non-fatal problem.)
+
+        The downside of adding a jar is that we can potentially get "multiple binding jar"
+        warning like http://www.slf4j.org/codes.html, but that's at least non-fatal.
+      -->
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-jdk14</artifactId>
+    </dependency>
+    <!-- offline profiler API when we need it -->
+    <!--dependency
+      <groupId>com.yourkit.api</groupId>
+      <artifactId>yjp</artifactId>
+      <version>dontcare</version>
+      <scope>system</scope>
+      <systemPath>/usr/local/yjp/lib/yjp.jar</systemPath>
+    </dependency-->
+    <dependency>
+      <!--
+        not actually used by test but used by dependency plugin to include it inside the war.
+      -->
+      <groupId>org.jenkins-ci</groupId>
+      <artifactId>winstone</artifactId>
+      <version>${winstone.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>jenkins</finalName>
+    <plugins>
+      <!-- TODO When Java 11 usage declines to a terminal level, this can be deleted. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>display-info</id>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>11</version>
+                </requireJavaVersion>
+                <enforceBytecodeVersion>
+                  <maxJdkVersion>11</maxJdkVersion>
+                  <excludes>
+                    <exclude>io.jenkins.tools:bridge-method-annotation</exclude>
+                    <exclude>org.jenkins-ci:annotation-indexer</exclude>
+                    <exclude>org.jenkins-ci:commons-jelly</exclude>
+                    <exclude>org.jenkins-ci:commons-jelly-tags-fmt</exclude>
+                    <exclude>org.jenkins-ci:commons-jelly-tags-xml</exclude>
+                    <exclude>org.jenkins-ci:crypto-util</exclude>
+                    <exclude>org.jenkins-ci.main:cli</exclude>
+                    <exclude>org.jenkins-ci.main:jenkins-core</exclude>
+                    <exclude>org.jenkins-ci.main:remoting</exclude>
+                    <exclude>org.jenkins-ci.main:websocket-jetty12-ee9</exclude>
+                    <exclude>org.jenkins-ci.main:websocket-spi</exclude>
+                    <exclude>org.jenkins-ci:memory-monitor</exclude>
+                    <exclude>org.jenkins-ci:symbol-annotation</exclude>
+                    <exclude>org.jenkins-ci:task-reactor</exclude>
+                    <exclude>org.jenkins-ci:version-number</exclude>
+                    <exclude>org.jvnet.hudson:commons-jelly-tags-define</exclude>
+                    <exclude>org.jvnet.winp:winp</exclude>
+                    <exclude>org.kohsuke:access-modifier-annotation</exclude>
+                    <exclude>org.kohsuke.stapler:json-lib</exclude>
+                    <exclude>org.kohsuke.stapler:stapler</exclude>
+                    <exclude>org.kohsuke.stapler:stapler-groovy</exclude>
+                    <exclude>org.kohsuke.stapler:stapler-jelly</exclude>
+                    <exclude>org.springframework.security:spring-security-core</exclude>
+                    <exclude>org.springframework.security:spring-security-crypto</exclude>
+                    <exclude>org.springframework.security:spring-security-web</exclude>
+                    <exclude>org.springframework:spring-aop</exclude>
+                    <exclude>org.springframework:spring-beans</exclude>
+                    <exclude>org.springframework:spring-context</exclude>
+                    <exclude>org.springframework:spring-core</exclude>
+                    <exclude>org.springframework:spring-expression</exclude>
+                    <exclude>org.springframework:spring-web</exclude>
+                  </excludes>
+                </enforceBytecodeVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <release>11</release>
+          <testRelease>11</testRelease>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <release>11</release>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-war-plugin</artifactId>
+        <!-- version specified in grandparent pom -->
+        <configuration>
+          <filteringDeploymentDescriptors>true</filteringDeploymentDescriptors>
+          <!-- for putting Main-Class into war -->
+          <archive>
+            <manifest>
+              <mainClass>executable.Main</mainClass>
+            </manifest>
+            <manifestEntries>
+              <!-- Make sure to keep the directives in core/pom.xml and test/pom.xml in sync with these. -->
+              <Add-Opens>java.base/java.lang java.base/java.io java.base/java.util</Add-Opens>
+              <Implementation-Version>${project.version}</Implementation-Version>
+              <Hudson-Version>1.395</Hudson-Version>
+              <Jenkins-Version>${project.version}</Jenkins-Version>
+              <Remoting-Embedded-Version>${remoting.version}</Remoting-Embedded-Version>
+              <Remoting-Minimum-Supported-Version>${remoting.minimum.supported.version}</Remoting-Minimum-Supported-Version>
+            </manifestEntries>
+          </archive>
+          <!--outputFileNameMapping>@{artifactId}@.@{extension}@</outputFileNameMapping-->
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <!-- version specified in grandparent pom -->
+        <executions>
+          <execution>
+            <id>list-dependencies</id>
+            <goals>
+              <goal>list</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <outputFile>${project.build.outputDirectory}/dependencies.txt</outputFile>
+            </configuration>
+          </execution>
+          <execution>
+            <id>resgen</id>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <phase>generate-resources</phase>
+            <configuration>
+              <artifactItems>
+                <!-- dependencies that goes to unusual locations -->
+                <artifactItem>
+                  <groupId>org.jenkins-ci</groupId>
+                  <artifactId>winstone</artifactId>
+                  <outputDirectory>${project.build.directory}/${project.build.finalName}/executable</outputDirectory>
+                  <destFileName>winstone.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${project.build.directory}/${project.build.finalName}/WEB-INF/plugins</outputDirectory>
+              <stripVersion>true</stripVersion>
+              <overWriteIfNewer>true</overWriteIfNewer>
+              <overWriteReleases>false</overWriteReleases>
+              <overWriteSnapshots>true</overWriteSnapshots>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>classes-copy</id>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <phase>prepare-package</phase>
+            <configuration>
+              <target>
+                <move todir="${project.build.directory}/${project.build.finalName}">
+                  <fileset dir="${project.build.directory}/classes">
+                    <include name="executable/**/*.class" />
+                  </fileset>
+                </move>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <!-- generate licenses.xml -->
+        <groupId>io.jenkins.tools.maven</groupId>
+        <artifactId>license-maven-plugin</artifactId>
+        <!-- version specified in grandparent pom -->
+        <configuration>
+          <generateLicenseXml>${project.build.outputDirectory}/META-INF/licenses.xml</generateLicenseXml>
+          <generateLicenseHtml>${project.build.outputDirectory}/META-INF/licenses.html</generateLicenseHtml>
+          <attach>true</attach>
+          <inlineScript>filter {
+                // add Winstone since we are bundling it.
+                def d = project.dependencies.find { it.artifactId=="winstone" };
+                def a = mojo.artifactFactory.createProjectArtifact(d.groupId,d.artifactId,d.version);
+                def buildingRequest = new org.apache.maven.project.DefaultProjectBuildingRequest(mojo.session.projectBuildingRequest)
+                buildingRequest.remoteRepositories = project.remoteArtifactRepositories
+                buildingRequest.processPlugins = false // improve performance
+                def p = mojo.projectBuilder.build(a, buildingRequest).project
+                models.put(a,p);
+            }</inlineScript>
+        </configuration>
+      </plugin>
+      <plugin>
+        <!--
+          Development instance: mvn -pl war hpi:run. Serves the exploded WAR under Winstone, the same way
+          jenkins.war is served in production, so build the WAR first.
+        -->
+        <groupId>org.jenkins-ci.tools</groupId>
+        <artifactId>maven-hpi-plugin</artifactId>
+        <!-- version specified in grandparent pom -->
+        <configuration>
+          <webAppFile>${project.build.directory}/${project.build.finalName}.war</webAppFile>
+          <explodedWar>${project.build.directory}/${project.build.finalName}</explodedWar>
+          <webApp>
+            <contextPath>${contextPath}</contextPath>
+          </webApp>
+          <!--
+            Serve these from the source tree rather than from the copies in the exploded WAR, so that
+            editing them (or running "yarn start", which writes to src/main/webapp/jsbundles) takes
+            effect without repackaging.
+
+            Never link WEB-INF/classes as a whole: it is real build output holding the symbol SVGs that
+            Symbol.loadSymbol reads off the class path as images/symbols/*.svg, and replacing it makes
+            every icon render as the placeholder cross. Link the individual roots instead. A miss in
+            WEB-INF/classes falls through to jenkins-core.jar, so the generated .stapler and .javadoc
+            resources under these packages still resolve.
+
+            Putting the core roots in front of jenkins-core.jar is what lets an edited Messages.properties
+            be picked up on the next restart rather than needing "mvn -pl core install" and a repackage.
+            Only on restart: ResourceBundleHolder caches each bundle for the life of the JVM. Views and
+            their sibling .properties are live, via stapler.resourcePath below.
+          -->
+          <webrootLinks>
+            <webrootLink>
+              <path>jsbundles</path>
+              <target>${project.basedir}/src/main/webapp/jsbundles</target>
+            </webrootLink>
+            <webrootLink>
+              <path>images</path>
+              <target>${project.basedir}/src/main/webapp/images</target>
+            </webrootLink>
+            <webrootLink>
+              <path>scripts</path>
+              <target>${project.basedir}/src/main/webapp/scripts</target>
+            </webrootLink>
+            <webrootLink>
+              <path>css</path>
+              <target>${project.basedir}/src/main/webapp/css</target>
+            </webrootLink>
+            <webrootLink>
+              <path>help</path>
+              <target>${project.basedir}/src/main/webapp/help</target>
+            </webrootLink>
+            <webrootLink>
+              <path>WEB-INF/classes/images</path>
+              <target>${project.basedir}/src/main/resources/images</target>
+            </webrootLink>
+            <webrootLink>
+              <path>WEB-INF/classes/hudson</path>
+              <target>${project.basedir}/../core/src/main/resources/hudson</target>
+            </webrootLink>
+            <webrootLink>
+              <path>WEB-INF/classes/jenkins</path>
+              <target>${project.basedir}/../core/src/main/resources/jenkins</target>
+            </webrootLink>
+            <webrootLink>
+              <path>WEB-INF/classes/lib</path>
+              <target>${project.basedir}/../core/src/main/resources/lib</target>
+            </webrootLink>
+          </webrootLinks>
+          <systemProperties>
+            <hudson.Main.development>true</hudson.Main.development>
+            <!-- show the stapler evaluation during execution -->
+            <stapler.trace>true</stapler.trace>
+            <!-- show the full stack trace on errors (the oops page) -->
+            <jenkins.model.Jenkins.SHOW_STACK_TRACE>true</jenkins.model.Jenkins.SHOW_STACK_TRACE>
+            <!-- always reload scripts during debugging -->
+            <hudson.script.noCache>true</hudson.script.noCache>
+            <!-- load view resources from the source directly, again for real time change -->
+            <stapler.resourcePath>${project.basedir}/../core/src/main/resources</stapler.resourcePath>
+            <!-- stat collection pointless -->
+            <hudson.model.UsageStatistics.disabled>true</hudson.model.UsageStatistics.disabled>
+          </systemProperties>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
