@@ -96,7 +96,7 @@ public abstract class SafeTimerTask extends TimerTask {
     }
 
     /**
-     * Subclasses implement the actual work here.
+     * Subclasses implement the actual periodic or one-shot work here.
      */
     protected abstract void doRun() throws Exception;
 
