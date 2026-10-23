@@ -86,7 +86,7 @@ public abstract class SafeTimerTask extends TimerTask {
 
     @Override
     public final void run() {
-        // background activity gets system credential,
+        // background activity gets system credential (not the invoking user's),
         // just like executors get it.
         try (ACLContext ctx = ACL.as2(ACL.SYSTEM2)) {
             doRun();
