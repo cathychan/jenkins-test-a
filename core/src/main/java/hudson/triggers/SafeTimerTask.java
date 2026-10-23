@@ -86,7 +86,7 @@ public abstract class SafeTimerTask extends TimerTask {
 
     @Override
     public final void run() {
-        // background activity gets system credential,
+        // background activity gets system credential (not the invoking user's),
         // just like executors get it.
         try (ACLContext ctx = ACL.as2(ACL.SYSTEM2)) {
             doRun();
@@ -95,6 +95,9 @@ public abstract class SafeTimerTask extends TimerTask {
         }
     }
 
+    /**
+     * Subclasses implement the actual periodic or one-shot work here.
+     */
     protected abstract void doRun() throws Exception;
 
 
@@ -121,6 +124,15 @@ public abstract class SafeTimerTask extends TimerTask {
             ALREADY_LOGGED = true;
             return new File(tagsLogsPath);
         }
+    }
+
+    /**
+     * Whether task logs are being redirected to a non-default root directory.
+     * @see #LOGS_ROOT_PATH_PROPERTY
+     * @since TODO
+     */
+    public static boolean isUsingCustomLogsRoot() {
+        return SystemProperties.getString(LOGS_ROOT_PATH_PROPERTY) != null;
     }
 
     private static final Logger LOGGER = Logger.getLogger(SafeTimerTask.class.getName());
