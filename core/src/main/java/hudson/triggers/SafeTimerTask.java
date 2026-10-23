@@ -132,5 +132,6 @@ public abstract class SafeTimerTask extends TimerTask {
         return ALREADY_LOGGED;
     }
 
+    /** Logger for this class. */
     private static final Logger LOGGER = Logger.getLogger(SafeTimerTask.class.getName());
 }
