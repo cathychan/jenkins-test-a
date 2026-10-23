@@ -123,5 +123,14 @@ public abstract class SafeTimerTask extends TimerTask {
         }
     }
 
+    /**
+     * Whether the non-default logs root warning has already been logged this session.
+     * @see #ALREADY_LOGGED
+     * @since TODO
+     */
+    public static boolean hasLoggedCustomLogsRootWarning() {
+        return ALREADY_LOGGED;
+    }
+
     private static final Logger LOGGER = Logger.getLogger(SafeTimerTask.class.getName());
 }
