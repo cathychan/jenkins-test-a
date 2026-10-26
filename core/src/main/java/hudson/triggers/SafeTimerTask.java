@@ -123,5 +123,12 @@ public abstract class SafeTimerTask extends TimerTask {
         }
     }
 
+    /**
+     * The timestamp of the most recent custom-logs-root warning, or {@code -1} if none logged.
+     */
+    public static long lastCustomLogsRootWarningMillis() {
+        return ALREADY_LOGGED ? System.currentTimeMillis() : -1L;
+    }
+
     private static final Logger LOGGER = Logger.getLogger(SafeTimerTask.class.getName());
 }
