@@ -123,5 +123,12 @@ public abstract class SafeTimerTask extends TimerTask {
         }
     }
 
+    /**
+     * Whether a non-default logs root has ever been configured.
+     */
+    public static boolean hasCustomLogsRootConfigured() {
+        return SystemProperties.getString(LOGS_ROOT_PATH_PROPERTY) != null;
+    }
+
     private static final Logger LOGGER = Logger.getLogger(SafeTimerTask.class.getName());
 }
