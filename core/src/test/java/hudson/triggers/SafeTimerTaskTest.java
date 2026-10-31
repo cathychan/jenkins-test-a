@@ -28,13 +28,25 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class SafeTimerTaskTest {
 
+    private String originalValue;
+
+    @BeforeEach
+    void saveProperty() {
+        originalValue = System.getProperty(SafeTimerTask.LOGS_ROOT_PATH_PROPERTY);
+    }
+
     @AfterEach
-    void clearProperty() {
-        System.clearProperty(SafeTimerTask.LOGS_ROOT_PATH_PROPERTY);
+    void restoreProperty() {
+        if (originalValue == null) {
+            System.clearProperty(SafeTimerTask.LOGS_ROOT_PATH_PROPERTY);
+        } else {
+            System.setProperty(SafeTimerTask.LOGS_ROOT_PATH_PROPERTY, originalValue);
+        }
     }
 
     @Test
